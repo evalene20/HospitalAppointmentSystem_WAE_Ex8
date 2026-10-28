@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_booking" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.49.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="booking-process" name="Appointment booking" isExecutable="true">
+    <bpmn:startEvent id="start" name="Booking requested">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="checkSlot" name="Check slot">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="slot_decision" resultVariable="slotDecision" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="gw" name="Slot status?" default="fFull">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>fAvail</bpmn:outgoing>
+      <bpmn:outgoing>fFull</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:scriptTask id="bookSlot" name="Book slot">
+      <bpmn:extensionElements>
+        <zeebe:script expression="=&#34;BOOKED&#34;" resultVariable="slotBooking" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>fAvail</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:callActivity id="notifyConfirm" name="Send confirmation">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="send-notification" propagateAllChildVariables="false" propagateAllParentVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=telegramChatId" target="recipientId" />
+          <zeebe:input source="=&#34;Hello &#34; + patientName + &#34;, your &#34; + department + &#34; appointment for &#34; + preferredSlot + &#34; is confirmed.&#34;" target="messageText" />
+          <zeebe:output source="=notificationResult.status" target="confirmationStatus" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:intermediateCatchEvent id="waitAppt" name="Wait for appointment">
+      <bpmn:incoming>f5</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">= duration("PT15M")</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="endBooked" name="Appointment completed">
+      <bpmn:incoming>f6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:callActivity id="notifyFull" name="Send slot full message">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="send-notification" propagateAllChildVariables="false" propagateAllParentVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=telegramChatId" target="recipientId" />
+          <zeebe:input source="=&#34;Sorry &#34; + patientName + &#34;, the &#34; + department + &#34; slot &#34; + preferredSlot + &#34; is full. &#34; + slotDecision.suggestedAction + &#34;.&#34;" target="messageText" />
+          <zeebe:output source="=notificationResult.status" target="slotFullNotificationStatus" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fFull</bpmn:incoming>
+      <bpmn:outgoing>f7</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="endFull" name="Slot full">
+      <bpmn:incoming>f7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:subProcess id="handleCancel" name="Handle cancellation" triggeredByEvent="true">
+      <bpmn:startEvent id="cancelStart" name="Cancellation received">
+        <bpmn:extensionElements />
+        <bpmn:outgoing>c1</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="med1" messageRef="Message_cancel" />
+      </bpmn:startEvent>
+      <bpmn:scriptTask id="releaseSlot" name="Release slot">
+        <bpmn:extensionElements>
+          <zeebe:script expression="=&#34;CANCELLED&#34;" resultVariable="slotBooking" />
+        </bpmn:extensionElements>
+        <bpmn:incoming>c1</bpmn:incoming>
+        <bpmn:outgoing>c2</bpmn:outgoing>
+      </bpmn:scriptTask>
+      <bpmn:callActivity id="notifyCancel" name="Send cancellation message">
+        <bpmn:extensionElements>
+          <zeebe:calledElement processId="send-notification" propagateAllChildVariables="false" propagateAllParentVariables="false" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=telegramChatId" target="recipientId" />
+            <zeebe:input source="=&#34;Hello &#34; + patientName + &#34;, your &#34; + department + &#34; appointment for &#34; + preferredSlot + &#34; has been cancelled.&#34;" target="messageText" />
+            <zeebe:output source="=notificationResult.status" target="cancelNotificationStatus" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:incoming>c2</bpmn:incoming>
+        <bpmn:outgoing>c3</bpmn:outgoing>
+      </bpmn:callActivity>
+      <bpmn:endEvent id="endCancelled" name="Booking cancelled">
+        <bpmn:incoming>c3</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="c1" sourceRef="cancelStart" targetRef="releaseSlot" />
+      <bpmn:sequenceFlow id="c2" sourceRef="releaseSlot" targetRef="notifyCancel" />
+      <bpmn:sequenceFlow id="c3" sourceRef="notifyCancel" targetRef="endCancelled" />
+    </bpmn:subProcess>
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="checkSlot" />
+    <bpmn:sequenceFlow id="f2" sourceRef="checkSlot" targetRef="gw" />
+    <bpmn:sequenceFlow id="fAvail" name="AVAILABLE" sourceRef="gw" targetRef="bookSlot">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=slotDecision.slotStatus = "AVAILABLE"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="fFull" name="FULL" sourceRef="gw" targetRef="notifyFull" />
+    <bpmn:sequenceFlow id="f4" sourceRef="bookSlot" targetRef="notifyConfirm" />
+    <bpmn:sequenceFlow id="f5" sourceRef="notifyConfirm" targetRef="waitAppt" />
+    <bpmn:sequenceFlow id="f6" sourceRef="waitAppt" targetRef="endBooked" />
+    <bpmn:sequenceFlow id="f7" sourceRef="notifyFull" targetRef="endFull" />
+  </bpmn:process>
+  <bpmn:message id="Message_cancel" name="cancel-booking">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=patientId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmndi:BPMNDiagram id="D1">
+    <bpmndi:BPMNPlane id="P1" bpmnElement="booking-process">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="checkSlot_di" bpmnElement="checkSlot">
+        <dc:Bounds x="240" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_di" bpmnElement="gw" isMarkerVisible="true">
+        <dc:Bounds x="395" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="431" y="245" width="58" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bookSlot_di" bpmnElement="bookSlot">
+        <dc:Bounds x="500" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyConfirm_di" bpmnElement="notifyConfirm">
+        <dc:Bounds x="640" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="waitAppt_di" bpmnElement="waitAppt">
+        <dc:Bounds x="792" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="780" y="138" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endBooked_di" bpmnElement="endBooked">
+        <dc:Bounds x="880" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyFull_di" bpmnElement="notifyFull">
+        <dc:Bounds x="500" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endFull_di" bpmnElement="endFull">
+        <dc:Bounds x="652" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="handleCancel_di" bpmnElement="handleCancel" isExpanded="true">
+        <dc:Bounds x="250" y="420" width="500" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cancelStart_di" bpmnElement="cancelStart">
+        <dc:Bounds x="280" y="502" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="releaseSlot_di" bpmnElement="releaseSlot">
+        <dc:Bounds x="360" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyCancel_di" bpmnElement="notifyCancel">
+        <dc:Bounds x="510" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCancelled_di" bpmnElement="endCancelled">
+        <dc:Bounds x="662" y="502" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="c1_di" bpmnElement="c1">
+        <di:waypoint x="316" y="520" />
+        <di:waypoint x="360" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="c2_di" bpmnElement="c2">
+        <di:waypoint x="460" y="520" />
+        <di:waypoint x="510" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="c3_di" bpmnElement="c3">
+        <di:waypoint x="610" y="520" />
+        <di:waypoint x="662" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f1_di" bpmnElement="f1">
+        <di:waypoint x="188" y="220" />
+        <di:waypoint x="240" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f2_di" bpmnElement="f2">
+        <di:waypoint x="340" y="220" />
+        <di:waypoint x="395" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="fAvail_di" bpmnElement="fAvail">
+        <di:waypoint x="420" y="195" />
+        <di:waypoint x="420" y="120" />
+        <di:waypoint x="500" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="fFull_di" bpmnElement="fFull">
+        <di:waypoint x="420" y="245" />
+        <di:waypoint x="420" y="320" />
+        <di:waypoint x="500" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f4_di" bpmnElement="f4">
+        <di:waypoint x="600" y="120" />
+        <di:waypoint x="640" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f5_di" bpmnElement="f5">
+        <di:waypoint x="740" y="120" />
+        <di:waypoint x="792" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f6_di" bpmnElement="f6">
+        <di:waypoint x="828" y="120" />
+        <di:waypoint x="880" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f7_di" bpmnElement="f7">
+        <di:waypoint x="600" y="320" />
+        <di:waypoint x="652" y="320" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

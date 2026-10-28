@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="slot_decision_defs" name="Slot decision" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="5.49.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <decision id="slot_decision" name="Slot decision">
+    <decisionTable id="slotTable">
+      <input id="in_dept" label="Department">
+        <inputExpression id="ie_dept" typeRef="string">
+          <text>department</text>
+        </inputExpression>
+      </input>
+      <input id="in_count" label="Booked count">
+        <inputExpression id="ie_count" typeRef="number">
+          <text>bookedCount</text>
+        </inputExpression>
+      </input>
+      <output id="out_status" label="Slot status" name="slotStatus" typeRef="string">
+        <outputValues>
+          <text></text>
+        </outputValues>
+      </output>
+      <output id="out_action" label="Suggested action" name="suggestedAction" typeRef="string" />
+      <rule id="r1">
+        <description>Cardiology: capacity 10</description>
+        <inputEntry id="r1a">
+          <text>"Cardiology"</text>
+        </inputEntry>
+        <inputEntry id="r1b">
+          <text>&gt;= 10</text>
+        </inputEntry>
+        <outputEntry id="r1c">
+          <text>"FULL"</text>
+        </outputEntry>
+        <outputEntry id="r1d">
+          <text>"Offer next available date"</text>
+        </outputEntry>
+      </rule>
+      <rule id="r2">
+        <description>Cardiology: below capacity</description>
+        <inputEntry id="r2a">
+          <text>"Cardiology"</text>
+        </inputEntry>
+        <inputEntry id="r2b">
+          <text>&lt; 10</text>
+        </inputEntry>
+        <outputEntry id="r2c">
+          <text>"AVAILABLE"</text>
+        </outputEntry>
+        <outputEntry id="r2d">
+          <text>"Confirm booking"</text>
+        </outputEntry>
+      </rule>
+      <rule id="r3">
+        <description>Other departments: capacity 20</description>
+        <inputEntry id="r3a">
+          <text>not("Cardiology")</text>
+        </inputEntry>
+        <inputEntry id="r3b">
+          <text>&gt;= 20</text>
+        </inputEntry>
+        <outputEntry id="r3c">
+          <text>"FULL"</text>
+        </outputEntry>
+        <outputEntry id="r3d">
+          <text>"Offer next available date"</text>
+        </outputEntry>
+      </rule>
+      <rule id="r4">
+        <description>Other departments: below capacity</description>
+        <inputEntry id="r4a">
+          <text>not("Cardiology")</text>
+        </inputEntry>
+        <inputEntry id="r4b">
+          <text>&lt; 20</text>
+        </inputEntry>
+        <outputEntry id="r4c">
+          <text>"AVAILABLE"</text>
+        </outputEntry>
+        <outputEntry id="r4d">
+          <text>"Confirm booking"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_1">
+      <dmndi:DMNShape id="DMNShape_1" dmnElementRef="slot_decision">
+        <dc:Bounds height="80" width="180" x="150" y="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>
